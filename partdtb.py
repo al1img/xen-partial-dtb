@@ -10,8 +10,13 @@ IRQ_BASE = 32
 PAGE_SHIFT = 12
 PAGE_SIZE = (1 << PAGE_SHIFT)
 
-def is_node_ok(node):
+def is_node_ok(path, node):
     try:
+        for entry in blackList:
+            if path.startswith(entry):
+                print 'Warning: item %s is in black list' % (path)
+                return False;
+            
         index = node.index('status')
         if isinstance(node[index], FdtPropertyStrings) and (node[index][0] == 'disabled'):
             print 'Warning: item %s disabled' % (node.get_name()) 
@@ -29,7 +34,7 @@ def write_compatible(fdt, file):
 
 def get_iommus(path, node):
     result = ""
-    if not is_node_ok(node):
+    if not is_node_ok(path, node):
         return result
     prop = FdtProperty("xen,passthrough")
     for (item) in node:
@@ -46,9 +51,9 @@ def write_iommus(fdt, file):
             file.write(get_iommus(path, node))
     file.write(']\n\n')
 
-def get_irqs(node):
+def get_irqs(path, node):
     result = ""
-    if not is_node_ok(node):
+    if not is_node_ok(path, node):
         return result
     first = True
     for (item) in node:
@@ -68,12 +73,12 @@ def write_irqs(fdt, file):
     file.write('irqs = [\n')
     for (path, node) in fdt.resolve_path('/').walk():
         if isinstance(node, FdtNode): 
-            file.write(get_irqs(node))
+            file.write(get_irqs(path, node))
     file.write(']\n\n')
 
-def get_regs(node):
+def get_regs(path, node):
     result = list()
-    if not is_node_ok(node):
+    if not is_node_ok(path, node):
         return result
     for (item) in node:
         if isinstance(item, FdtPropertyWords):
@@ -97,7 +102,7 @@ def write_regs(fdt, file):
     file.write('iomem = [\n')
     for (path, node) in fdt.resolve_path('/').walk():
         if isinstance(node, FdtNode):
-            for val in get_regs(node):
+            for val in get_regs(path, node):
                 add_reg(result, val)
 
     for (addr, size, names) in result:
@@ -108,12 +113,19 @@ def write_regs(fdt, file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Xen partial dtb')
-    parser.add_argument('in_filename', help="source DTB filename")
+    parser.add_argument('src_filename', help="source DTB filename")
     parser.add_argument('out_filename', help="output config filename")
     parser.add_argument('dtb_filename', help="output DTB filename")
+    parser.add_argument('--black_list', help="specifies black list file name")
     args = parser.parse_args()
     
-    with open(args.in_filename) as infile:
+    blackList = list()
+    
+    if args.black_list:
+        with open(args.black_list) as bl_file:
+            blackList = bl_file.read().splitlines()
+
+    with open(args.src_filename) as infile:
         dtb = FdtBlobParse(infile)
 
     fdt = dtb.to_fdt()
