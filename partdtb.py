@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import argparse
+import re
 from pyfdt.pyfdt import *
 
 # constant
@@ -12,8 +13,9 @@ PAGE_SIZE = (1 << PAGE_SHIFT)
 
 def is_node_ok(path, node):
     try:
-        for entry in blackList:
-            if path.startswith(entry):
+        for entry in black_list:
+            m = entry.match(path)
+            if m:
                 print 'Warning: item %s is in black list' % (path)
                 return False;
             
@@ -119,11 +121,13 @@ if __name__ == '__main__':
     parser.add_argument('--black_list', help="specifies black list file name")
     args = parser.parse_args()
     
-    blackList = list()
+    black_list = list()
     
     if args.black_list:
         with open(args.black_list) as bl_file:
-            blackList = bl_file.read().splitlines()
+            string_list = bl_file.read().splitlines()
+            for entry in string_list:
+                black_list.append(re.compile(entry))
 
     with open(args.src_filename) as infile:
         dtb = FdtBlobParse(infile)
