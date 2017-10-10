@@ -3,6 +3,8 @@
 import argparse
 import re
 from pyfdt.pyfdt import *
+from pip.cmdoptions import src
+from pcbnew import BLACK
 
 # constant
 GIC_SPI = 0
@@ -11,14 +13,18 @@ IRQ_BASE = 32
 PAGE_SHIFT = 12
 PAGE_SIZE = (1 << PAGE_SHIFT)
 
+def match_list(l, value):
+    for entry in l:
+        m = entry.match(value)
+        if m:
+            return True
+    return False
+
 def is_node_ok(path, node):
     try:
-        for entry in black_list:
-            m = entry.match(path)
-            if m:
-                print 'Warning: item %s is in black list' % (path)
-                return False;
-            
+        if match_list(black_list, path):
+            print 'Warning: item %s is in black list' % (path)
+            return False;
         index = node.index('status')
         if isinstance(node[index], FdtPropertyStrings) and (node[index][0] == 'disabled'):
             print 'Warning: item %s disabled' % (node.get_name()) 
@@ -38,15 +44,14 @@ def get_iommus(path, node):
     result = ""
     if not is_node_ok(path, node):
         return result
-    prop = FdtProperty("xen,passthrough")
-    for (item) in node:
+    for item in node:
         if isinstance(item, FdtPropertyWords):
             if item.get_name() == 'iommus':
                 result += '    "' + path + '",\n'
-                node.insert(node.index('iommus') + 1, prop)
     return result
 
 def write_iommus(fdt, file):
+    print 'Info: generate dtdev'
     file.write('dtdev = [\n')
     for (path, node) in fdt.resolve_path('/').walk():
         if isinstance(node, FdtNode): 
@@ -72,6 +77,7 @@ def get_irqs(path, node):
     return result
 
 def write_irqs(fdt, file):
+    print 'Info: generate irqs'
     file.write('irqs = [\n')
     for (path, node) in fdt.resolve_path('/').walk():
         if isinstance(node, FdtNode): 
@@ -113,32 +119,97 @@ def write_regs(fdt, file):
         file.write('"0x%05x,%x",\n' % (addr, size))
     file.write(']\n\n')
 
+def add_passthrough(fdt):
+    prop = FdtProperty("xen,passthrough")
+    for (path, node) in fdt.resolve_path('/').walk():
+        if isinstance(node, FdtNode): 
+            if not is_node_ok(path, node):
+                continue
+            for item in node:
+                if isinstance(item, FdtPropertyWords):
+                    if item.get_name() == 'iommus':
+                        node.insert(node.index('iommus') + 1, prop)
+
+def set_node_disabled(node):
+    status = FdtPropertyStrings('status', ['disabled'])
+    try:
+        node[node.index('status')] = status
+    except ValueError:
+        node.add_subnode(status)
+
+def partial_dtb_node(path, src_node, dst_node):
+    for entry in src_node:
+        entry_path = path + entry.get_name()
+        if match_list(black_list, entry_path):
+            print 'Warning: item %s is in black list' % entry_path
+            continue
+        match_disabled = match_list(disable_list, entry_path)
+        match_dtb = match_list(dtb_list, entry_path)
+        if len(dtb_list) == 0 or match_dtb or match_disabled:
+            print match_disabled, len(dtb_list), match_dtb
+            print 'Info: item %s is added to dtb' % entry_path
+            if isinstance(entry, FdtNode):
+                dst_entry = FdtNode(entry.get_name())
+                dst_node.add_subnode(dst_entry)
+                partial_dtb_node(entry_path + '/', entry, dst_entry)
+                if match_disabled:
+                    print 'Warning: item %s is disabled' % entry_path
+                    set_node_disabled(dst_entry)
+            if isinstance(entry, FdtProperty):
+                dst_node.add_subnode(entry)
+
+def partial_dtb(fdt):
+    result = Fdt()
+    result.add_rootnode(FdtNode("/"))
+    partial_dtb_node('/', fdt.get_rootnode(), result.get_rootnode())
+    return result;
+
+def create_list(file_name):
+    l = list()
+    if not file_name:
+        return l
+    with open(file_name) as file:
+        string_list = file.read().splitlines()
+        for entry in string_list:
+            if entry:
+                l.append(re.compile(entry))
+    return l
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Xen partial dtb')
     parser.add_argument('src_filename', help="source DTB filename")
     parser.add_argument('out_filename', help="output config filename")
-    parser.add_argument('dtb_filename', help="output DTB filename")
+    parser.add_argument('--action', help="specifies action to be performed",
+                        required = True, choices=['config', 'passthrough', 'partialdtb'])
     parser.add_argument('--black_list', help="specifies black list file name")
+    parser.add_argument('--disable_list', help="specifies disable list file name")
+    parser.add_argument('--dtb_list', help="specifies dtb list file name")
     args = parser.parse_args()
-    
-    black_list = list()
-    
-    if args.black_list:
-        with open(args.black_list) as bl_file:
-            string_list = bl_file.read().splitlines()
-            for entry in string_list:
-                black_list.append(re.compile(entry))
+
+    # create lists
+    black_list = create_list(args.black_list)
+    disable_list = create_list(args.disable_list)
+    dtb_list = create_list(args.dtb_list)
 
     with open(args.src_filename) as infile:
         dtb = FdtBlobParse(infile)
 
     fdt = dtb.to_fdt()
 
-    with open(args.out_filename, "w") as outfile:
-        write_compatible(fdt, outfile)
-        write_iommus(fdt, outfile)
-        write_irqs(fdt, outfile)
-        write_regs(fdt, outfile)
-
-    with open(args.dtb_filename, "w") as outfile:
-        outfile.write(fdt.to_dtb())
+    if args.action.lower() == 'config':
+        with open(args.out_filename, "w") as outfile:
+            write_compatible(fdt, outfile)
+            write_iommus(fdt, outfile)
+            write_irqs(fdt, outfile)
+            write_regs(fdt, outfile)
+    elif args.action.lower() == 'passthrough':
+        with open(args.out_filename, "w") as outfile:
+            add_passthrough(fdt)
+            outfile.write(fdt.to_dtb())
+    elif args.action.lower() == 'partialdtb':
+        with open(args.out_filename, "w") as outfile:
+            result =  partial_dtb(fdt).to_dtb()
+            if result:
+                outfile.write(result)
+    else:
+        raise ValueError('Invalid action %s' % args.action)
