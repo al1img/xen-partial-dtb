@@ -119,15 +119,16 @@ def write_regs(fdt, file):
     file.write(']\n\n')
 
 def add_passthrough(fdt):
-    prop = FdtProperty("xen,passthrough")
+    prop = FdtProperty('xen,passthrough')
     for (path, node) in fdt.resolve_path('/').walk():
         if isinstance(node, FdtNode): 
             if not is_node_ok(path, node):
                 continue
-            for item in node:
-                if isinstance(item, FdtPropertyWords):
-                    if item.get_name() == 'iommus':
-                        node.insert(node.index('iommus') + 1, prop)
+            if node._find('iommus'):
+                if node._find('xen,passthrough'):
+                    print 'Warning: item %s passthrough already set' % node.get_name()
+                else:
+                    node.insert(node.index('iommus') + 1, prop)
 
 def set_node_disabled(node):
     status = FdtPropertyStrings('status', ['disabled'])
