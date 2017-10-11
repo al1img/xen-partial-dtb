@@ -20,26 +20,25 @@ def match_list(l, value):
     return False
 
 def is_node_ok(path, node):
-    try:
-        if match_list(black_list, path):
-            print 'Warning: item %s is in black list' % (path)
-            return False;
-        index = node.index('status')
-        if isinstance(node[index], FdtPropertyStrings) and (node[index][0] == 'disabled'):
-            print 'Warning: item %s disabled' % (node.get_name()) 
-            return False
-        return True
-    except ValueError:
-        return True
+    if match_list(black_list, path):
+        print 'Warning: item %s is in black list' % (path)
+        return False;
+    index = node._find('status')
+    if (index is not None and isinstance(node[index], FdtPropertyStrings) and
+        node[index][0] == 'disabled'):
+        print 'Warning: item %s disabled' % (node.get_name()) 
+        return False
+    return True
 
 def write_compatible(fdt, file):
+    print 'Info: generate dt_compatible'
     result = ""
     node = fdt.resolve_path('/compatible')
     if node and isinstance(node, FdtPropertyStrings):
         result += 'dt_compatible = [ "' + '", "'.join(node) + '" ]\n\n'
     file.write(result)
 
-def get_iommus(path, node):
+def get_dtdev(path, node):
     result = ""
     if not is_node_ok(path, node):
         return result
@@ -47,29 +46,28 @@ def get_iommus(path, node):
         result = '    "' + path + '",\n'
     return result
 
-def write_iommus(fdt, file):
+def write_dtdev(fdt, file):
     print 'Info: generate dtdev'
     file.write('dtdev = [\n')
     for (path, node) in fdt.resolve_path('/').walk():
         if isinstance(node, FdtNode): 
-            file.write(get_iommus(path, node))
+            file.write(get_dtdev(path, node))
     file.write(']\n\n')
 
 def get_irqs(path, node):
     result = ""
     if not is_node_ok(path, node):
         return result
-    first = True
-    for (item) in node:
-        if isinstance(item, FdtPropertyWords):
-            if item.get_name() == 'interrupts':
-                for (spec, num, mask) in zip(item[::3], item[1::3], item[2::3]):
-                    if spec == GIC_SPI:
-                        if first:
-                            result += '# ' + node.get_name() + '\n    '
-                            first = False
-                        result += str(num + IRQ_BASE) + ', '
-    if not first:
+    index = node._find('interrupts')
+    if index is None:
+        return result
+    item = node[index]
+    if not isinstance(item, FdtPropertyWords):
+        return result 
+    if item[0] == GIC_SPI: 
+        result += '# ' + node.get_name() + '\n   '
+        for (spec, num, mask) in zip(item[::3], item[1::3], item[2::3]):
+            result += ' ' + str(num + IRQ_BASE) + ','
         result += '\n'
     return result
 
@@ -85,15 +83,18 @@ def get_regs(path, node):
     result = list()
     if not is_node_ok(path, node):
         return result
-    for (item) in node:
-        if isinstance(item, FdtPropertyWords):
-            if item.get_name() == 'reg':
-                for (val) in zip(item[::4], item[1::4], item[2::4], item[3::4]):
-                    if val[0] == 0:
-                        result.append((val[1] >> PAGE_SHIFT, (val[3] + PAGE_SIZE - 1) // PAGE_SIZE, node.get_name()))
+    index = node._find('reg')
+    if index is None:
+        return result
+    item = node[index]
+    if not isinstance(item, FdtPropertyWords):
+        return result
+    for (val) in zip(item[::4], item[1::4], item[2::4], item[3::4]):
+        if val[0] == 0:
+            result.append((val[1] >> PAGE_SHIFT, (val[3] + PAGE_SIZE - 1) // PAGE_SIZE, node.get_name()))
     return result
 
-def add_reg(regs, val):
+def add_iomem(regs, val):
     for (i, r) in enumerate(regs):
         if r[0] == val[0]:
             regs[i][2].append(val[2])
@@ -102,14 +103,14 @@ def add_reg(regs, val):
     names.append(val[2])
     regs.append((val[0], val[1], names))
 
-def write_regs(fdt, file):
+def write_iomem(fdt, file):
+    print 'Info: generate iomem'
     result = list()
     file.write('iomem = [\n')
     for (path, node) in fdt.resolve_path('/').walk():
         if isinstance(node, FdtNode):
             for val in get_regs(path, node):
-                add_reg(result, val)
-
+                add_iomem(result, val)
     for (addr, size, names) in result:
         for name in names:
             file.write('#' + name + '\n')
@@ -122,7 +123,13 @@ def add_passthrough(fdt):
         if isinstance(node, FdtNode): 
             if not is_node_ok(path, node):
                 continue
-            if node._find('iommus') or node._find('interrupts'):
+            irq_found = False
+            irq_index = node._find('interrupts');
+            if irq_index is not None:
+                irq_item = node[irq_index]
+                if isinstance(irq_item, FdtPropertyWords) and irq_item[0] == GIC_SPI:
+                    irq_found = True 
+            if node._find('iommus') or irq_found:
                 if node._find('xen,passthrough'):
                     print 'Warning: item %s passthrough already set' % node.get_name()
                 else:
@@ -196,9 +203,9 @@ if __name__ == '__main__':
     if args.action.lower() == 'config':
         with open(args.out_filename, "w") as outfile:
             write_compatible(fdt, outfile)
-            write_iommus(fdt, outfile)
+            write_dtdev(fdt, outfile)
             write_irqs(fdt, outfile)
-            write_regs(fdt, outfile)
+            write_iomem(fdt, outfile)
     elif args.action.lower() == 'passthrough':
         with open(args.out_filename, "w") as outfile:
             add_passthrough(fdt)
