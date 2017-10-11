@@ -113,7 +113,7 @@ def write_regs(fdt, file):
     for (addr, size, names) in result:
         for name in names:
             file.write('#' + name + '\n')
-        file.write('    "0x%05x, %x",\n' % (addr, size))
+        file.write('    "%05x,%x",\n' % (addr, size))
     file.write(']\n\n')
 
 def add_passthrough(fdt):
