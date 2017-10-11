@@ -55,7 +55,7 @@ def write_dtdev(fdt, file):
     file.write(']\n\n')
 
 def get_irqs(path, node):
-    result = ""
+    result = set()
     if not is_node_ok(path, node):
         return result
     index = node._find('interrupts')
@@ -65,18 +65,22 @@ def get_irqs(path, node):
     if not isinstance(item, FdtPropertyWords):
         return result 
     if item[0] == GIC_SPI: 
-        result += '# ' + node.get_name() + '\n   '
         for (spec, num, mask) in zip(item[::3], item[1::3], item[2::3]):
-            result += ' ' + str(num + IRQ_BASE) + ','
-        result += '\n'
+            result.add(num + IRQ_BASE)
     return result
 
 def write_irqs(fdt, file):
     print 'Info: generate irqs'
     file.write('irqs = [\n')
+    irqs = set()
     for (path, node) in fdt.resolve_path('/').walk():
-        if isinstance(node, FdtNode): 
-            file.write(get_irqs(path, node))
+        if not isinstance(node, FdtNode):
+            continue 
+        node_irqs = get_irqs(path, node).difference(irqs)
+        irqs = irqs | node_irqs
+        if len(node_irqs) != 0:
+            file.write('# %s\n' % node.get_name())
+            file.write('    ' + ', '.join(str(s) for s in node_irqs) + ',\n')
     file.write(']\n\n')
 
 def get_regs(path, node):
