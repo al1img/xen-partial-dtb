@@ -36,7 +36,7 @@ def write_compatible(fdt, file):
     result = ""
     node = fdt.resolve_path('/compatible')
     if node and isinstance(node, FdtPropertyStrings):
-        result += 'dt_compatible = [ "' + ', "'.join(node) + '" ]\n\n'
+        result += 'dt_compatible = [ "' + '", "'.join(node) + '" ]\n\n'
     file.write(result)
 
 def get_iommus(path, node):
