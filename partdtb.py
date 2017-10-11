@@ -43,10 +43,8 @@ def get_iommus(path, node):
     result = ""
     if not is_node_ok(path, node):
         return result
-    for item in node:
-        if isinstance(item, FdtPropertyWords):
-            if item.get_name() == 'iommus':
-                result += '    "' + path + '",\n'
+    if node._find('iommus') and not node._find('xen,coproc'):
+        result = '    "' + path + '",\n'
     return result
 
 def write_iommus(fdt, file):
@@ -124,7 +122,7 @@ def add_passthrough(fdt):
         if isinstance(node, FdtNode): 
             if not is_node_ok(path, node):
                 continue
-            if node._find('iommus'):
+            if node._find('iommus') or node._find('interrupts'):
                 if node._find('xen,passthrough'):
                     print 'Warning: item %s passthrough already set' % node.get_name()
                 else:
