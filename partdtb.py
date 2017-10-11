@@ -54,6 +54,20 @@ def write_dtdev(fdt, file):
             file.write(get_dtdev(path, node))
     file.write(']\n\n')
 
+def write_dtpassthrough(fdt, file):
+    print 'Info: generate dt_passthrough_nodes'
+    file.write('dt_passthrough_nodes = [\n')
+    root = fdt.get_rootnode()
+    if root is not None:
+        for node in root:
+            if not isinstance(node, FdtNode):
+                continue
+            path = '/' + node.get_name();
+            if not is_node_ok(path, node):
+                continue
+            file.write('    "%s",\n' % path)
+    file.write(']\n\n')
+
 def get_irqs(path, node):
     result = set()
     if not is_node_ok(path, node):
@@ -207,6 +221,7 @@ if __name__ == '__main__':
     if args.action.lower() == 'config':
         with open(args.out_filename, "w") as outfile:
             write_compatible(fdt, outfile)
+            write_dtpassthrough(fdt, outfile)
             write_dtdev(fdt, outfile)
             write_irqs(fdt, outfile)
             write_iomem(fdt, outfile)
