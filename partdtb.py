@@ -4,7 +4,6 @@ import argparse
 import re
 from pyfdt.pyfdt import *
 from pip.cmdoptions import src
-from pcbnew import BLACK
 
 # constant
 GIC_SPI = 0
@@ -116,7 +115,7 @@ def write_regs(fdt, file):
     for (addr, size, names) in result:
         for name in names:
             file.write('#' + name + '\n')
-        file.write('"0x%05x,%x",\n' % (addr, size))
+        file.write('    "0x%05x, %x",\n' % (addr, size))
     file.write(']\n\n')
 
 def add_passthrough(fdt):
@@ -146,7 +145,6 @@ def partial_dtb_node(path, src_node, dst_node):
         match_disabled = match_list(disable_list, entry_path)
         match_dtb = match_list(dtb_list, entry_path)
         if len(dtb_list) == 0 or match_dtb or match_disabled:
-            print match_disabled, len(dtb_list), match_dtb
             print 'Info: item %s is added to dtb' % entry_path
             if isinstance(entry, FdtNode):
                 dst_entry = FdtNode(entry.get_name())
