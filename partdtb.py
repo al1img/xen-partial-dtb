@@ -129,7 +129,7 @@ def add_passthrough(fdt):
                 irq_item = node[irq_index]
                 if isinstance(irq_item, FdtPropertyWords) and irq_item[0] == GIC_SPI:
                     irq_found = True 
-            if node._find('iommus') or irq_found:
+            if (node._find('iommus') or irq_found) and node._find('xen,coproc') is None:
                 if node._find('xen,passthrough'):
                     print 'Warning: item %s passthrough already set' % node.get_name()
                 else:
