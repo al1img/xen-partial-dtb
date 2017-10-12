@@ -151,7 +151,7 @@ def add_passthrough(fdt):
                 if node._find('xen,passthrough'):
                     print 'Warning: item %s passthrough already set' % node.get_name()
                 else:
-                    node.append(prop)
+                    node.insert(0, prop)
 
 def set_node_disabled(node):
     status = FdtPropertyStrings('status', ['disabled'])
