@@ -1,0 +1,3 @@
+.*interrupt.*
+.*pmu_a5.*
+/soc/timer
