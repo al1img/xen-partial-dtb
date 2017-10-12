@@ -109,12 +109,16 @@ def get_regs(path, node):
     index = node._find('reg')
     if index is None:
         return result
+    comment = node._find('xen,coproc') is not None
     item = node[index]
     if not isinstance(item, FdtPropertyWords):
         return result
     for (val) in zip(item[::4], item[1::4], item[2::4], item[3::4]):
         if val[0] == 0:
-            result.append((val[1] >> PAGE_SHIFT, (val[3] + PAGE_SIZE - 1) // PAGE_SIZE, node.get_name()))
+            name = node.get_name()
+            if comment:
+                name += ' handled by coproc framework'
+            result.append((val[1] >> PAGE_SHIFT, (val[3] + PAGE_SIZE - 1) // PAGE_SIZE, name, comment))
     return result
 
 def add_iomem(regs, val):
@@ -124,7 +128,7 @@ def add_iomem(regs, val):
             return
     names = list()
     names.append(val[2])
-    regs.append((val[0], val[1], names))
+    regs.append((val[0], val[1], names, val[3]))
 
 def write_iomem(fdt, file):
     print 'Info: generate iomem'
@@ -134,9 +138,11 @@ def write_iomem(fdt, file):
         if isinstance(node, FdtNode):
             for val in get_regs(path, node):
                 add_iomem(result, val)
-    for (addr, size, names) in result:
+    for (addr, size, names, comment) in result:
         for name in names:
             file.write('#' + name + '\n')
+        if comment:
+            file.write('#')
         file.write('    "%05x,%x",\n' % (addr, size))
     file.write(']\n\n')
 
