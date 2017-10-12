@@ -59,6 +59,8 @@ def write_dtdev(fdt, file):
 
 def write_dtpassthrough(fdt, file):
     print 'Info: generate dt_passthrough_nodes'
+    file.write('# Clocks and regulators are needed and are in the device tree root,\n')
+    file.write('# but we do not want to copy all root nodes: handle these one by one\n')
     file.write('dt_passthrough_nodes = [\n')
     root = fdt.get_rootnode()
     if root is not None:
