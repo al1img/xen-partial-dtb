@@ -5,7 +5,6 @@
 .*interrupt.*
 .*pmu_a5.*
 .*opp_table.*
-.*regulator.*
 .*mmu@fd800000
 .*mmu@fd950000
 .*mmu@e67b0000
@@ -16,4 +15,3 @@
 .*module@.*
 .*memory@.*
 .*serial@e6e88000
-.*gsx.*
