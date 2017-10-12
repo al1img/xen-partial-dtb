@@ -154,9 +154,13 @@ def is_passthrough_node(path, node):
 
 def write_passthrough(fdt, file):
     print 'Info: generate passthrough'
+    result = list()
     for (path, node) in fdt.resolve_path('/').walk():
         if is_passthrough_node(path, node):
-            file.write('&%-40s { xen,passthrough; };\n' % node.get_name())
+            result.append('&%-40s { xen,passthrough; };\n' % node.get_name())
+    result.sort()
+    for line in result:
+        file.write(line)
     file.write('\n')
 
 def add_passthrough(fdt):
