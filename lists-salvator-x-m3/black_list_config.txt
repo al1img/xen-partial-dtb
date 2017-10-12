@@ -16,3 +16,4 @@
 .*module@.*
 .*memory@.*
 .*serial@e6e88000
+.*gsx.*
