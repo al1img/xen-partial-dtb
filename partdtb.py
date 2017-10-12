@@ -151,14 +151,14 @@ def add_passthrough(fdt):
                 if node._find('xen,passthrough'):
                     print 'Warning: item %s passthrough already set' % node.get_name()
                 else:
-                    node.add_subnode(prop)
+                    node.append(prop)
 
 def set_node_disabled(node):
     status = FdtPropertyStrings('status', ['disabled'])
     try:
         node[node.index('status')] = status
     except ValueError:
-        node.add_subnode(status)
+        node.append(status)
 
 def partial_dtb_node(path, src_node, dst_node):
     for entry in src_node:
@@ -172,13 +172,13 @@ def partial_dtb_node(path, src_node, dst_node):
             print 'Info: item %s is added to dtb' % entry_path
             if isinstance(entry, FdtNode):
                 dst_entry = FdtNode(entry.get_name())
-                dst_node.add_subnode(dst_entry)
+                dst_node.append(dst_entry)
                 partial_dtb_node(entry_path + '/', entry, dst_entry)
                 if match_disabled:
                     print 'Warning: item %s is disabled' % entry_path
                     set_node_disabled(dst_entry)
             if isinstance(entry, FdtProperty):
-                dst_node.add_subnode(entry)
+                dst_node.append(entry)
 
 def partial_dtb(fdt):
     result = Fdt()
